@@ -115,6 +115,7 @@ def finetune(args):
 
         training_arguments = transformers.TrainingArguments(
             per_device_train_batch_size=tune_config.mbatch_size,
+            per_device_eval_batch_size=tune_config.mbatch_size,
             gradient_accumulation_steps=tune_config.gradient_accumulation_steps,
             warmup_steps=tune_config.warmup_steps,
             optim="adamw_torch",
@@ -152,7 +153,12 @@ def finetune(args):
             transformers.logging.set_verbosity_info()
 
         # Run Trainer
-        with wandb.init(project="alpaca_lora_4bit") as run:
+        with wandb.init(
+          project="CAUSAL_LM_Fineune_lora_4bit",
+          name='finetune-mpt-7b-storywriter-4bit-10240-input-context-on-wizard_vicuna_70k_processed',
+          id='run-mpt-7b-storywriter-4bit-10240-input-2023-06-04',
+          resume='auto',
+          ) as run:
             if tune_config.resume_checkpoint:
                 logger.info('Resuming from {} ...'.format(tune_config.resume_checkpoint))
                 state_dict_peft = torch.load(os.path.join(tune_config.resume_checkpoint, 'pytorch_model.bin'), map_location='cpu')
