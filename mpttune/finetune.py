@@ -10,6 +10,7 @@ from mpttune.data import load_data
 from mpttune.model import load_model
 from mpttune.model.lora import load_adapter
 from mpttune.model.utils import model_to_half
+from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
 logger = logging.get_logger("transformers")
 
@@ -43,6 +44,25 @@ class FinetuneConfig:
             f"{self.checkpoint=}\n{self.skip=}\n" + \
             f"{self.world_size=}\n{self.ddp=}\n{self.device_map=}\n"
         return s.replace("self.", "")
+
+
+from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl
+class SavePeftModelCallback(TrainerCallback):
+    def on_save(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
+        checkpoint_folder = os.path.join(
+            args.output_dir, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}"
+        )
+
+        peft_model_path = os.path.join(checkpoint_folder, "adapter_model")
+        kwargs["model"].save_pretrained(peft_model_path)
+
+        return control
 
 
 def finetune(args):
@@ -109,6 +129,7 @@ def finetune(args):
                 tune_config.logging_steps,
                 (len(data.train_data) + len(data.val_data)) // (eval_count * tune_config.mbatch_size)
             )
+            eval_steps = 2000
             logger.info(f"Run eval every {eval_steps} steps")
         else:
             eval_steps = 0
@@ -135,6 +156,7 @@ def finetune(args):
 
         trainer = transformers.Trainer(
             model=model,
+            callbacks=[SavePeftModelCallback],
             train_dataset=data.train_data,
             eval_dataset=data.val_data,
             args=training_arguments,
@@ -155,8 +177,8 @@ def finetune(args):
         # Run Trainer
         with wandb.init(
           project="CAUSAL_LM_Fineune_lora_4bit",
-          name='finetune-mpt-7b-storywriter-4bit-10240-input-context-on-wizard_vicuna_70k_processed',
-          id='run-mpt-7b-storywriter-4bit-10240-input-2023-06-04',
+          name='finetune-mpt-7b-storywriter-4bit-2002-input-context-on-wizard_vicuna_70k_processed-change-lr-from-3e-4-to-5e-4-batch_size_from_2_to_4',
+          id='run-mpt-7b-storywriter-4bit-2002-input-2023-06-04',
           resume='auto',
           ) as run:
             if tune_config.resume_checkpoint:
